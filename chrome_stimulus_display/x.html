@@ -1,0 +1,32 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style type="text/css">
+            #stimulus {
+                position: absolute;
+                text-align: center;
+                left: 50%;
+                top: 50%;
+                /*  set by js
+                width: 100px;
+                margin-left: -50px;
+                margin-top: -50px;
+                */
+            }
+
+            * {
+                background-color: rgb(128, 128, 128);
+            }
+        </style>
+        <script>
+            function center () {
+                s = document.getElementById("stimulus");
+                s.style.marginLeft = (s.width / -2) + "px";
+                s.style.marginTop = (s.height / -2) + "px";
+            };
+        </script>
+    </head>
+    <body onload="center()">
+        <img id="stimulus" src="x.png"></img>
+    </body>
+</html>
