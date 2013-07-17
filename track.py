@@ -17,7 +17,21 @@ except ImportError:
     nopygame = True
 
 
-save_frames = True
+# threshold for binarizing image after background subtraction
+binary_threshold = 20
+
+# dilation and erosion for removing small blobs (dirt, poo, etc...)
+# when finding the animal
+n_dilate = 5
+n_erode = 10
+# minimum blob area for finding the animal
+min_blob_area = 100
+max_blob_area = 10000  # still included, but no body measurements
+
+# head detection
+skeleton_radius = 7
+
+save_frames = False
 
 
 def load_corners(fn):
@@ -200,7 +214,7 @@ def find_tail(contour):
 
 
 def find_head(blob, tail):
-    sk = blob.blobImage().skeletonize(7)
+    sk = blob.blobImage().skeletonize(skeleton_radius)
     # order points by distance from head: furthest to closest
     pts = numpy.array(numpy.where(sk.getGrayNumpy())).T
     tail = numpy.array(tail) - blob.topLeftCorner()
@@ -279,6 +293,7 @@ def get_corners(im, test=False):
     corners = []
     d = scv.Display()
     d.writeFrame(vim)
+    print "Please click on three corners of the box"
     while d.isNotDone():
         p = d.leftButtonUpPosition()
         if p is not None:
@@ -404,18 +419,18 @@ def process_file(fn, save_every_n=1000, burn=0):
             #f['t'] = 128
             f['dim'] = bg_subtract(f['im'], f['bg'])
             #f['t'] = f['dim'].maxValue() / 2.
-            f['t'] = 20
+            f['t'] = binary_threshold
             f['bim'] = f['dim'].binarize(f['t'])
             # dilate then erode because of inversion
-            f['eim'] = f['bim'].dilate(5).erode(10)
-            f['blobs'] = blobs(f['eim'].invert(), 100)
+            f['eim'] = f['bim'].dilate(n_dilate).erode(n_erode)
+            f['blobs'] = blobs(f['eim'].invert(), min_blob_area)
             if f['blobs'] is not None:
                 for b in f['blobs']:
                     q, u, v = test_in_box(f['corners'], b.centroid())
                     b.quadrant = q
                     b.u = u
                     b.v = v
-                    if q != -1 and b.area() < 10000:
+                    if q != -1 and b.area() < max_blob_area:
                         head, body, tail = process_body(b)
                         b.head = head
                         b.body = body
