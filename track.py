@@ -375,7 +375,7 @@ def blob_to_dict(b):
     return d
 
 
-def process_file(fn, save_every_n=1000, burn=1000):
+def process_file(fn, save_every_n=1000, burn=0):
     c = scv.VirtualCamera(fn, 'video')
     if burn:
         print "skipping %i frames" % burn
