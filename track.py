@@ -6,8 +6,18 @@ import cPickle as pickle
 import sys
 
 import numpy
+import pylab
 import SimpleCV as scv
 import scipy.ndimage
+
+try:
+    import pygame
+    nopygame = False
+except ImportError:
+    nopygame = True
+
+
+save_frames = True
 
 
 def load_corners(fn):
@@ -28,8 +38,55 @@ def save_corners(corners, fn):
 
 
 def display(f):
-    wim = f['im']
+    if nopygame is False:
+        return display_cv(f)
+    wim = f['im'].getGrayNumpy()
+    pylab.ion()
+    pylab.clf()
+    pylab.imshow(wim.T, vmin=0, vmax=255, cmap=pylab.cm.gray)
+    pylab.title('thresh: %i' % f['t'])
+    if (f['blobs'] is not None) and len(f['blobs']):
+        for (i, b) in enumerate(f['blobs']):
+            # draw bounding box
+            x, y, w, h = b.boundingBox()
+            pylab.plot(
+                [x, x + w, x + w, x, x],
+                [y, y, y + h, y + h, y], color='b')
+            # draw centroid
+            cx, cy = b.centroid()
+            pylab.scatter(cx, cy, color='b')
+            # draw head, body, tail
+            if b.head is not None:
+                x, y = b.head
+                pylab.scatter(x, y, color='r')
+            if b.body is not None:
+                x, y = b.body
+                pylab.scatter(x, y, color='g')
+            if b.tail is not None:
+                x, y = b.tail
+                pylab.scatter(x, y, color='m')
+            if all([i is not None for i in (b.head, b.body, b.tail)]):
+                pylab.plot(
+                    [b.tail[0], b.body[0], b.head[0]],
+                    [b.tail[1], b.body[1], b.head[1]], color='y')
+            c = numpy.array(b.contour())
+            pylab.plot(c[:, 0], c[:, 1], color='b')
+    if 'corners' in f:
+        # draw corners
+        xs = []
+        ys = []
+        for c in f['corners']:
+            xs.append(c['x'])
+            ys.append(c['y'])
+        pylab.scatter(xs, ys, color='r')
+    #pylab.show()
+    pylab.gcf().canvas.draw()
+    if save_frames:
+        pylab.savefig('%05i.png' % f['i'])
 
+
+def display_cv(f):
+    wim = f['im']
     wim.drawText('thresh: %i' % f['t'], 10, 10, scv.Color.RED)
     y = 20
     if (f['blobs'] is not None) and len(f['blobs']):
@@ -109,12 +166,68 @@ def blobs(im, minarea=None):
     return b
 
 
+def measure_curvature(contour):
+    """
+    < 0 = convex
+    > 0 = concave
+    """
+    c = numpy.array(contour)
+    i1 = [-1, ] + range(c.shape[0] - 1)
+    i2 = range(c.shape[0])
+    i3 = range(1, c.shape[0]) + [0, ]
+    x1 = c[i1, 0]
+    x2 = c[i2, 0]
+    x3 = c[i3, 0]
+    y1 = c[i1, 1]
+    y2 = c[i2, 1]
+    y3 = c[i3, 1]
+    sqr = lambda i: i ** 2.
+    n = 2. * ((x2 - x1) * (y3 - y2) - (y2 - y1) * (x3 - x2))
+    d = numpy.sqrt(
+        (sqr(x2 - x1) + sqr(y2 - y1)) *
+        (sqr(x3 - x2) + sqr(y3 - y2)) *
+        (sqr(x1 - x3) + sqr(y1 - y3)))
+    return n / d
+
+
+def find_tail(contour):
+    c = numpy.array(contour)
+    rcv = measure_curvature(c)
+    cc = c[rcv < 0]
+    cv = measure_curvature(cc)
+    # find minimum
+    return cc[cv.argmin()]
+
+
+def find_head(blob, tail):
+    sk = blob.blobImage().skeletonize(7)
+    # order points by distance from head: furthest to closest
+    pts = numpy.array(numpy.where(sk.getGrayNumpy())).T
+    tail = numpy.array(tail) - blob.topLeftCorner()
+    dists = numpy.sum((pts - tail) ** 2., 1)
+    spts = pts[dists.argsort()[::-1]]
+    head = spts[0]
+    bi = numpy.where(spts < spts.max() / 2.)[0][0]
+    body = spts[bi]
+    return head + blob.topLeftCorner(), body + blob.topLeftCorner()
+
+
+def process_body(blob):
+    tail = find_tail(blob.contour())
+    head, body = find_head(blob, tail)
+    return head, body, tail
+
+
 def frames(c, numbers=False):
     if numbers:
         fi = c.getFrameNumber()
         im = c.getImage()
+        notfirst = False
         while im is not None:
             yield fi, im
+            if notfirst and c.getFrameNumber() < fi:
+                break
+            notfirst = True
             fi = c.getFrameNumber()
             im = c.getImage()
     else:
@@ -256,18 +369,24 @@ def blob_to_dict(b):
     d['height'] = b.height()
     d['area'] = b.area()
     d['cx'], d['cy'] = b.centroid()
+    d['head'] = b.head
+    d['body'] = b.body
+    d['tail'] = b.tail
     return d
 
 
-def process_file(fn, save_every_n=30):
+def process_file(fn, save_every_n=1000, burn=1000):
     c = scv.VirtualCamera(fn, 'video')
+    if burn:
+        print "skipping %i frames" % burn
+        for _ in xrange(burn):
+            c.getImage()
     bg = load_background(fn)
     if bg is None:
         bg = make_background(c)
         save_background(bg, fn)
         print "You have to restart this file to get the correct frame numbers"
         sys.exit(1)
-    bg = make_background(c)
     corners = load_corners(fn)
     if corners is None:
         corners = get_corners(bg)
@@ -277,7 +396,7 @@ def process_file(fn, save_every_n=30):
     rfn = os.path.splitext(fn)[0] + '_track.p'
     rs = []
     try:
-        for (i, (fi, im)) in enumerate(frames(c, numbers=True)):
+        for (i, (fi, im)) in enumerate(frames(c, numbers=True), burn):
             f['im'] = im
             f['fi'] = fi
             f['i'] = i
@@ -296,6 +415,15 @@ def process_file(fn, save_every_n=30):
                     b.quadrant = q
                     b.u = u
                     b.v = v
+                    if q != -1 and b.area() < 10000:
+                        head, body, tail = process_body(b)
+                        b.head = head
+                        b.body = body
+                        b.tail = tail
+                    else:
+                        b.head = None
+                        b.body = None
+                        b.tail = None
             if i % 100 == 0:
                 print "processing frame %04i" % i
             d = dict([(k, f[k]) for k in ['fi', 'i', 't']])
@@ -304,7 +432,7 @@ def process_file(fn, save_every_n=30):
             else:
                 d['blobs'] = [blob_to_dict(b) for b in f['blobs']]
             rs.append(d)
-            rs.append(dict([(k, f[k]) for k in ['fi', 'i', 't', 'blobs']]))
+            #rs.append(dict([(k, f[k]) for k in ['fi', 'i', 't', 'blobs']]))
             if i % save_every_n == 0:
                 with open(rfn, 'w') as rf:
                     pickle.dump(rs, rf)
