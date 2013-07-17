@@ -259,7 +259,7 @@ def blob_to_dict(b):
     return d
 
 
-def process_file(fn):
+def process_file(fn, save_every_n=30):
     c = scv.VirtualCamera(fn, 'video')
     bg = load_background(fn)
     if bg is None:
@@ -305,17 +305,20 @@ def process_file(fn):
                 d['blobs'] = [blob_to_dict(b) for b in f['blobs']]
             rs.append(d)
             rs.append(dict([(k, f[k]) for k in ['fi', 'i', 't', 'blobs']]))
+            if i % save_every_n == 0:
+                with open(rfn, 'w') as rf:
+                    pickle.dump(rs, rf)
             yield f
     except KeyboardInterrupt as E:
         # save results
         logging.debug("Saving %i results to %s" % (len(rs), rfn))
-        with open(rfn, 'w') as f:
-            pickle.dump(rs, f)
+        with open(rfn, 'w') as rf:
+            pickle.dump(rs, rf)
         # re-raise
         raise E
     logging.debug("Saving %i results to %s" % (len(rs), rfn))
-    with open(rfn, 'w') as f:
-        pickle.dump(rs, f)
+    with open(rfn, 'w') as rf:
+        pickle.dump(rs, rf)
 
 
 def show_file(fn, everyn=1):
