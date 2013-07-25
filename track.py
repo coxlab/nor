@@ -30,6 +30,12 @@ max_blob_area = 10000  # still included, but no body measurements
 
 # head detection
 skeleton_radius = 7
+# 1/2 the number of pixels to expand blob bounding box of suspected animal
+animal_w_margin = 10
+animal_h_margin = 10
+
+# threshold to max value ratio for animal detection
+animal_t_ratio = 0.75
 
 save_frames = False
 
@@ -116,6 +122,11 @@ def display_cv(f):
             wim.drawText('blob %i area %i q=%i' %
                          (i, b.area(), q), 10, y, cm[i])
             y += 10
+    if ('animal' in f) and (f['animal'] is not None):
+        a = f['animal']
+        wim.drawCircle(a.h, 3, scv.Color.RED, -1)
+        wim.drawCircle(a.b, 3, scv.Color.GREEN, -1)
+        wim.drawCircle(a.t, 3, scv.Color.BLUE, -1)
     if 'corners' in f:
         for c in f['corners']:
             wim.drawCircle((c['x'], c['y']), 3, scv.Color.RED, -1)
@@ -221,7 +232,8 @@ def find_head(blob, tail):
     dists = numpy.sum((pts - tail) ** 2., 1)
     spts = pts[dists.argsort()[::-1]]
     head = spts[0]
-    bi = numpy.where(spts < spts.max() / 2.)[0][0]
+    bi = len(spts) / 2
+    #bi = numpy.where(spts < spts.max() / 2.)[0][-1]
     body = spts[bi]
     return head + blob.topLeftCorner(), body + blob.topLeftCorner()
 
@@ -390,7 +402,56 @@ def blob_to_dict(b):
     return d
 
 
-def process_file(fn, save_every_n=1000, burn=0):
+def cull_possible_animals(ps, la):
+    if la is None:
+        # return biggest?
+        return max(ps, key=lambda i: i.area())
+    # return closest TODO should this use the centroid?
+    return min(ps, key=lambda i: (la.x - i.x) ** 2. + (la.y - i.y) ** 2.)
+
+
+def refine_animal(a, f):
+    """
+    a : animal 'blob'
+    f : frame features
+    """
+    if a is None:
+        return None
+    # crop image to a.bb + some margin
+    cim = f['dim'].crop(a.x, a.y, a.width() + animal_w_margin * 2,
+                        a.height() + animal_h_margin * 2, centered=True)
+
+    # re-threshold
+    abim = cim.binarize(cim.maxValue() * animal_t_ratio).invert()
+
+    # get biggest blob
+    blobs = abim.findBlobs()
+    if len(blobs) > 1:
+        blob = max(blobs, key=lambda b: b.area())
+    elif len(blobs) == 1:
+        blob = blobs[0]
+    else:
+        return a
+
+    # find head & tail
+    h, b, t = process_body(blob)
+
+    # offset blob h, b, t
+    o = a.topLeftCorner() - numpy.array([animal_w_margin, animal_h_margin])
+    a.h = h + o
+    a.b = b + o
+    a.t = t + o
+
+    # fix head and tail (head should be darker)
+    him = f['im'].crop(a.h[0], a.h[1], 10, 10, centered=True)
+    tim = f['im'].crop(a.t[0], a.t[1], 10, 10, centered=True)
+    if him.meanColor()[0] > tim.meanColor()[0]:
+        a.h, a.t = a.t, a.h
+
+    return a
+
+
+def process_file(fn, save_every_n=1000, burn=1000):
     c = scv.VirtualCamera(fn, 'video')
     if burn:
         print "skipping %i frames" % burn
@@ -410,6 +471,7 @@ def process_file(fn, save_every_n=1000, burn=0):
     f['corners'] = order_corners(f)
     rfn = os.path.splitext(fn)[0] + '_track.p'
     rs = []
+    last_animal = None
     try:
         for (i, (fi, im)) in enumerate(frames(c, numbers=True), burn):
             f['im'] = im
@@ -424,12 +486,15 @@ def process_file(fn, save_every_n=1000, burn=0):
             # dilate then erode because of inversion
             f['eim'] = f['bim'].dilate(n_dilate).erode(n_erode)
             f['blobs'] = blobs(f['eim'].invert(), min_blob_area)
+            possible_animals = []
             if f['blobs'] is not None:
                 for b in f['blobs']:
                     q, u, v = test_in_box(f['corners'], b.centroid())
                     b.quadrant = q
                     b.u = u
                     b.v = v
+                    if q != -1:
+                        possible_animals.append(b)
                     if q != -1 and b.area() < max_blob_area:
                         head, body, tail = process_body(b)
                         b.head = head
@@ -439,6 +504,13 @@ def process_file(fn, save_every_n=1000, burn=0):
                         b.head = None
                         b.body = None
                         b.tail = None
+            if len(possible_animals) == 1:
+                animal = possible_animals[0]
+            elif len(possible_animals) == 0:
+                animal = None
+            else:
+                animal = cull_possible_animals(possible_animals, last_animal)
+            f['animal'] = refine_animal(animal, f)
             if i % 100 == 0:
                 print "processing frame %04i" % i
             d = dict([(k, f[k]) for k in ['fi', 'i', 't']])
@@ -446,12 +518,18 @@ def process_file(fn, save_every_n=1000, burn=0):
                 d['blobs'] = []
             else:
                 d['blobs'] = [blob_to_dict(b) for b in f['blobs']]
+            if f['animal'] is None:
+                d['animal'] = None
+            else:
+                d['animal'] = blob_to_dict(f['animal'])
             rs.append(d)
             #rs.append(dict([(k, f[k]) for k in ['fi', 'i', 't', 'blobs']]))
             if i % save_every_n == 0:
                 with open(rfn, 'w') as rf:
                     pickle.dump(rs, rf)
             yield f
+            if animal is not None:
+                last_animal = animal
     except KeyboardInterrupt as E:
         # save results
         logging.debug("Saving %i results to %s" % (len(rs), rfn))
