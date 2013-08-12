@@ -1,8 +1,8 @@
 
-r1=transpose(X3_13_Rs(:,1)+1);
-r2=transpose(X3_13_Rs(:,2)+1);
+r1=transpose(X1_01_Rs(:,1)+1);
+r2=transpose(X1_01_Rs(:,2)+1);
 
-Q = [columnA columnF columnG columnI columnJ columnL columnR]; % [ FrameNumber Headx Heady Tailx Taily Centroidx Centroidy]
+Q = [columnA columnF columnG columnI columnJ columnX columnP]; % [ FrameNumber Headx Heady Tailx Taily Centroidx Centroidy]
 
 for i = 1:length(r1)
     X = Q(r1(i):r2(i),2:3);
@@ -11,27 +11,27 @@ for i = 1:length(r1)
     Q(r1(i):r2(i),4:5) = X(:,:);
 end
 
-Final_m = [Q(:,2:3), Q(:,6:7), Q(:,2)-Q(:,4), Q(:,3)-Q(:,5)];
-FramNum = transpose(Q(:,1));
+Final_m = [Q(1:15450,2:3), Q(1:15450,6:7), Q(1:15450,2)-Q(1:15450,6), Q(1:15450,3)-Q(1:15450,7)];
+FramNum = transpose(Q(1:15450,1));
 posit_direc=transpose(Final_m); % compiles relevant data in one matrix (frame number ,position, then head direction by row)
 %%
 xaxis = [ 1,0];
 %procframnum = zeros(1, length(posit_direc(1,:))); % number of the frame (which comes from modified SOS processing)
 LvR = zeros(1, length(posit_direc(1,:))); % 1 = left; -1 = right; 0 = noise/forward/backward 
 Side = zeros(1, length(posit_direc(1,:))); % 1 = left; -1 = right; 0 = midline
-P1 = [,];
-P2 = [,];
-P3 = [,];
-P4 = [,];
-V1 = [0,0];
-V2 = [0,0];
-V3 = [0,0];
-V4 = [0,0];
-for i=1:length(posit_direc(1,:)) % Run through every processed frame 
+P1 = [341,36];
+P2 = [429,36];
+P3 = [341,440];
+P4 = [429,440];
+V1 = [0,0]; % one side of "peripheral" vision of stimulus on left
+V2 = [0,0]; % other side of "peripheral" vision of stimulus on left
+V3 = [0,0]; % one side of "peripheral" vision of stimulus on right 
+V4 = [0,0]; % other side of "peripheral" vision of stimulus on right
+for i= 1:length(posit_direc(1,:)) % Run through every processed frame 
 %    procframnum(i) = i;
     theta = rad2deg(atan2(xaxis(1)*posit_direc(6,i)-posit_direc(5,i)*xaxis(2),xaxis(1)*posit_direc(5,i)+xaxis(2)*posit_direc(6,i))); %calculate angle of head direction relative to pre defined x-axis
 % looking to the left
-if theta > 0 
+if theta < 0 
     V1(1) = P1(1) - posit_direc(3,i); % vector1 x coordinate
     V1(2) = P1(2) - posit_direc(4,i); % vector1 y coordinate
     V2(1) = P2(1) - posit_direc(3,i); % vector2 x coordinate
@@ -43,7 +43,7 @@ if theta > 0
     else LvR(i) = 0;
     end
 %looking to the right    
-elseif theta < 0 
+elseif theta > 0 
     V3(1) = P3(1) - posit_direc(3,i); % vector1 x coordinate
     V3(2) = P3(2) - posit_direc(4,i); % vector1 y coordinate
     V4(1) = P4(1) - posit_direc(3,i); % vector2 x coordinate
