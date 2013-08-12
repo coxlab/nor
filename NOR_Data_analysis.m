@@ -1,4 +1,3 @@
-
 r1=transpose(X3_13_Rs(:,1)+1);
 r2=transpose(X3_13_Rs(:,2)+1);
 
