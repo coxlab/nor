@@ -1,3 +1,4 @@
+
 r1=transpose(X3_13_Rs(:,1)+1);
 r2=transpose(X3_13_Rs(:,2)+1);
 
@@ -10,7 +11,7 @@ for i = 1:length(r1)
     Q(r1(i):r2(i),4:5) = X(:,:);
 end
 
-Final_m = [Q(:,2:3), Q(:,6:7), Q(:,2)-Q(:,4), Q(:,3)-Q(:,5)];
+Final_m = [Q(:,2:3), Q(:,6:7), Q(:,2)-Q(:,6), Q(:,3)-Q(:,7)];
 FramNum = transpose(Q(:,1));
 posit_direc=transpose(Final_m); % compiles relevant data in one matrix (frame number ,position, then head direction by row)
 xaxis = [ 1,0];
@@ -22,14 +23,14 @@ for i=1:length(posit_direc(1,:)) % Run through every processed frame
 %    procframnum(i) = i;
     theta = rad2deg(atan2(xaxis(1)*posit_direc(6,i)-posit_direc(5,i)*xaxis(2),xaxis(1)*posit_direc(5,i)+xaxis(2)*posit_direc(6,i))); %calculate angle of head direction relative to pre defined x-axis
 % looking to the left
-if theta > 0 
+if theta < 0 
     if 10 < theta && theta < 170 % accounting for noise at the midline (could be looking forward or backward)
         LvR(i) = 1;
     else 
         LvR(i) = 0;
     end
 %looking to the right    
-elseif theta < 0 
+elseif theta > 0 
     if -170 < theta && theta < -10 % accounting for noise at the midline (could be looking forward or backward)
         LvR(i) = -1;
     end
