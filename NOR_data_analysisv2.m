@@ -1,4 +1,3 @@
-
 r1=transpose(X1_01_Rs(:,1)+1);
 r2=transpose(X1_01_Rs(:,2)+1);
 
@@ -62,7 +61,7 @@ end
 %is the tip of the nose
 if posit_direc(2,i) < 250 % rat's head is on left side of box
     Side(i) = 1;
-elseif posit_direc(2,i) < 250 % rat's head is on right side of box
+elseif posit_direc(2,i) > 250 % rat's head is on right side of box
     Side(i) = -1;
 else %rat's head is on center line
     if posit_direc(4,i) < 250 % rat's centroid is on left -> rat is on left
