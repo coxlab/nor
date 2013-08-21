@@ -75,6 +75,14 @@ elseif theta > 0
 end
 
 end
+% Check if Head was within 2 centimeter region 
+
+X2cmL = [193 220 220 347 347 337]'; % x-coordinates of 2cm on left
+Y2cmL = [91 145 154 127 119 65]'; % y coordinates of 2cm box on left
+X2cmR = [428 424 424 555 555 584]'; % x coordinates of 2cm on left
+Y2cmR = [62 120 126 145 141 90]'; % y coordinates of 2cm box on right
+inL2cm = inpolygon(Final_m(:,1),Final_m(:,2),X2cmL,Y2cmL); % Check to see if head coordinate is in the 2cm region
+inR2cm = inpolygon(Final_m(:,1),Final_m(:,2),X2cmR,Y2cmR); % Check to see if head coordinate is in the 2cm region
 
 head_direction_data = [FramNum; FvB; Side];
 
@@ -86,6 +94,8 @@ LookN = (sum(FvB == 0)) / 25; % Time lost to noise/ Not looking
 OnLeft = (sum(Side == 1)) / 25; % Time spent on left side of box in seconds
 OnRight = (sum(Side == -1)) / 25; % Time spent on right side of box in seconds
 Midline = (sum(Side == 0)) / 25; % Time spent on the midline of box in seconds
+in2cmL = (sum(inL2cm))/25; % Time spent with head in 2cm box on left 
+in2cmR = (sum(inR2cm))/25; % Time spent with head in 2cm box on right 
 TotTime = length(FramNum)/(25);
 
 OnLeft_Looking = 0; 
@@ -108,5 +118,5 @@ OnLeft_Looking = OnLeft_Looking/25; % Time spent looking left on left side of bo
 OnRight_Looking = OnRight_Looking/25; % Time spent looking right on left side of box in seconds
 %OnRight_LookingRight = OnRight_LookingRight/25; % Time spent looking right on right side of box in seconds
 
-FillinOutput = [OnLeft, OnLeft_Looking, NaN, OnRight, NaN, OnRight_Looking, NaN, NaN, TotTime]; 
+FillinOutput = [OnLeft, OnLeft_Looking, NaN, OnRight, NaN, OnRight_Looking, NaN, NaN, in2cmL, in2cmR, TotTime]; 
 copy(FillinOutput);
