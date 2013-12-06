@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <style type="text/css">
+            #stimulus {
+                overflow: hidden;
+                position: absolute;
+                text-align: center;
+                left: 50%;
+                top: 65%;
+                /*  set by js
+                width: 100px;
+                margin-left: -50px;
+                margin-top: -200px;
+                */
+            }
+            body {
+                overflow: hidden;
+            }
+
+            * {
+                background-color: rgb(0, 0, 0);
+            }
+        </style>
+        <script>
+            flashIntervalOn = 1000
+            flashIntervalOff = 1000
+            pendulumFreq = 0.5
+            pendulumAmplitude = 0.07
+
+
+            function center () {
+                s = document.getElementById("stimulus");
+                s.height = 810
+                s.style.marginLeft = (s.width / -2) + "px";
+                s.style.marginTop = (s.height / -2) + "px";
+            };
+
+            function flash (){
+                console.log('flash')
+                center()
+                s = document.getElementById("stimulus");
+                s.width = 1440;
+                s.style.marginLeft = (s.width / -2) + "px";
+                s.style.marginTop = (s.height / -2) + "px";
+                s.style['display'] = 'inline';
+                setTimeout(flashOff, flashIntervalOn)
+            }
+
+            function flashOff (){
+                console.log('off')
+                s = document.getElementById("stimulus");
+                s.style['display'] = 'none'
+                setTimeout(flash, flashIntervalOff)
+            }
+
+
+            function pendulum () {
+                s = document.getElementById("stimulus");
+                s.height = 690;
+                s.style.marginLeft = (s.width / -2) + "px";
+                s.style.marginTop = (Math.sin(pendulumFreq * (new Date()).getTime()/1000) * s.width*pendulumAmplitude) + (s.height / -2) + "px";
+
+                setTimeout(pendulum, 40)
+            }
+        </script>
+    </head>
+    <body onload="pendulum()">
+        <img id="stimulus" src="20.png" ></img>
+    </body>
+</html>
